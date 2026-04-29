@@ -56,13 +56,21 @@ jobs:
     - name: Build Release
       run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Package Binary (Unix)
+    - name: Package Binary and Assets (Unix)
       if: runner.os != 'Windows'
-      run: zip -j ${{ env.BINARY_NAME }}-${{ matrix.artifact_name }}.zip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
+      run: |
+        # copy binary to root so it sits next to the assets folder in the zip
+        cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} .
+        # zip both the binary and the assets folder
+        zip -r ${{ env.BINARY_NAME }}-${{ matrix.artifact_name }}.zip ${{ env.BINARY_NAME }} assets/
 
-    - name: Package Binary (Windows)
+    - name: Package Binary and Assets (Windows)
       if: runner.os == 'Windows'
-      run: Compress-Archive -Path target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe -DestinationPath ${{ env.BINARY_NAME }}-${{ matrix.artifact_name }}.zip
+      run: |
+        # copy binary to root so it sits next to the assets folder in the zip
+        Copy-Item target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe -Destination .
+        # compress both into the archive
+        Compress-Archive -Path ${{ env.BINARY_NAME }}.exe, assets -DestinationPath ${{ env.BINARY_NAME }}-${{ matrix.artifact_name }}.zip
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
