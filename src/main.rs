@@ -11,6 +11,8 @@ use player::{
 };
 use state::AppState;
 
+use crate::{chunk::remesh_chunks, player::break_blocks};
+
 fn main() {
     let mut app = App::new();
 
@@ -34,6 +36,8 @@ fn main() {
                 camera_movement,
                 camera_look,
                 toggle_mouse_grab,
+                break_blocks,
+                remesh_chunks
             )
                 .run_if(in_state(AppState::Playing)),
         )

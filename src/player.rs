@@ -4,6 +4,8 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 
+use crate::chunk::{CHUNK_SIZE, Chunk, NeedsRemesh};
+
 #[derive(Component)]
 pub struct FlyCam {
     pub speed: f32,
@@ -126,5 +128,63 @@ pub fn toggle_mouse_grab(
 
         let center = Vec2::new(window.width() / 2.0, window.height() / 2.0);
         window.set_cursor_position(Some(center));
+    }
+}
+
+pub fn break_blocks(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<MouseButton>>,
+    camera_query: Query<&Transform, With<Camera3d>>,
+    mut chunk_query: Query<(Entity, &mut Chunk)>,
+) {
+    // only trigger on left click
+    if !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok(cam_transform) = camera_query.single() else { return; };
+    
+    let forward = cam_transform.rotation * Vec3::NEG_Z;
+    let origin = cam_transform.translation;
+
+    let reach = 5.0;     // how far the player can reach
+    let step = 0.05;     // accuracy of the raycast (smaller = more precise)
+    let max_steps = (reach / step) as usize;
+
+    for (entity, mut chunk) in chunk_query.iter_mut() {
+        let mut hit = false;
+        
+        // Step forward from the camera
+        for i in 0..max_steps {
+            let point = origin + forward * (i as f32 * step);
+
+            let x = point.x.floor() as isize;
+            let y = point.y.floor() as isize;
+            let z = point.z.floor() as isize;
+
+            // make sure the coordinate is within the chunk's 16x16x16 bounds
+            if x >= 0 && x < CHUNK_SIZE as isize &&
+               y >= 0 && y < CHUNK_SIZE as isize &&
+               z >= 0 && z < CHUNK_SIZE as isize {
+                
+                let ux = x as usize;
+                let uy = y as usize;
+                let uz = z as usize;
+
+                // if the block is not air (0)
+                if chunk.blocks[ux][uy][uz] != 0 {
+                    chunk.blocks[ux][uy][uz] = 0; // Set to Air
+                    
+                    // tag the chunk so the meshing system rebuilds it this frame
+                    commands.entity(entity).insert(NeedsRemesh); 
+                    hit = true;
+                    break;
+                }
+            }
+        }
+        
+        if hit {
+            break; // stop checking chunks if we already broke a block
+        }
     }
 }
