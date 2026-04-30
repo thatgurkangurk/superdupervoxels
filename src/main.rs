@@ -123,7 +123,10 @@ fn main() {
         }),))
         .init_state::<AppState>()
         .init_resource::<BlockRegistry>()
-        .add_systems(Startup, (setup_registry, setup_environment))
+        .add_systems(
+            Startup,
+            (setup_registry, setup_environment, setup_crosshair),
+        )
         .add_systems(Update, stitch_textures.run_if(in_state(AppState::Loading)))
         .add_systems(
             Update,
@@ -137,6 +140,28 @@ fn main() {
         )
         .add_systems(OnEnter(AppState::Playing), spawn_chunk)
         .run();
+}
+
+fn setup_crosshair(mut commands: Commands) {
+    commands
+        .spawn(Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                Node {
+                    width: Val::Px(4.0),
+                    height: Val::Px(4.0),
+                    ..default()
+                },
+                // Color of the crosshair
+                BackgroundColor(Color::WHITE),
+            ));
+        });
 }
 
 fn camera_movement(
@@ -186,14 +211,13 @@ fn camera_movement(
 
 fn camera_look(
     cursor_options: Query<&CursorOptions, With<PrimaryWindow>>,
-    mut ev_motion: MessageReader<MouseMotion>, // Updated to MessageReader!
+    mut ev_motion: MessageReader<MouseMotion>,
     mut query: Query<(&mut FlyCam, &mut Transform)>,
 ) {
     let cursor = cursor_options
         .single()
         .expect("cursor options should exist");
 
-    // If the mouse isn't locked, don't move the camera!
     if cursor.grab_mode == CursorGrabMode::None {
         ev_motion.clear();
         return;
@@ -205,10 +229,8 @@ fn camera_look(
             cam.pitch -= ev.delta.y * cam.sensitivity;
         }
 
-        // Clamp pitch to ~89 degrees so we don't break our necks
         cam.pitch = cam.pitch.clamp(-1.54, 1.54);
 
-        // Apply the rotations. Yaw (Y-axis) is applied first, then Pitch (X-axis)
         transform.rotation =
             Quat::from_axis_angle(Vec3::Y, cam.yaw) * Quat::from_axis_angle(Vec3::X, cam.pitch);
     }
