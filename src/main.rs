@@ -4,7 +4,7 @@ mod debug;
 mod player;
 mod state;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PresentMode};
 use blocks::{BlockRegistry, BlockTextures, setup_registry, stitch_textures};
 use chunk::{Chunk, spawn_chunk};
 use player::{camera_look, camera_movement, setup_crosshair, setup_environment, toggle_mouse_grab};
@@ -20,6 +20,13 @@ fn main() {
             .set(ImagePlugin::default_nearest())
             .set(AssetPlugin {
                 watch_for_changes_override: Some(true),
+                ..default()
+            })
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    present_mode: PresentMode::AutoNoVsync,
+                    ..default()
+                }),
                 ..default()
             }),
         DebugUiPlugin,
