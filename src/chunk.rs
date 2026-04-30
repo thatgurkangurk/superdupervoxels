@@ -1,14 +1,18 @@
-use crate::blocks::{BlockAtlas, BlockRegistry, BlockTextures, NamespacedId};
+use crate::blocks::{BlockAtlas, BlockRegistry, BlockTextures};
 use bevy::{
     asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology,
 };
+use serde::{Deserialize, Serialize};
 
 pub const CHUNK_SIZE: usize = 16;
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize, Clone)]
 pub struct Chunk {
     pub blocks: [[[u16; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE],
 }
+
+#[derive(Component)]
+pub struct ChunkCoord(pub IVec3);
 
 /// marker component to tell that this chunk needs a new mesh
 #[derive(Component)]
@@ -20,27 +24,6 @@ impl Chunk {
             blocks: [[[0; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE],
         }
     }
-}
-
-pub fn spawn_chunk(mut commands: Commands, registry: Res<BlockRegistry>) {
-    let mut chunk = Chunk::empty();
-
-    let dirt_id = registry
-        .get_internal_id(&NamespacedId::new("superdupervoxels", "dirt"))
-        .unwrap();
-    let grass_id = registry
-        .get_internal_id(&NamespacedId::new("superdupervoxels", "grass"))
-        .unwrap();
-
-    for x in 0..CHUNK_SIZE {
-        for z in 0..CHUNK_SIZE {
-            chunk.blocks[x][0][z] = dirt_id;
-            chunk.blocks[x][1][z] = grass_id;
-        }
-    }
-
-    // spawn the data and tag it with NeedsRemesh
-    commands.spawn((chunk, Transform::from_xyz(0.0, 0.0, 0.0), NeedsRemesh));
 }
 
 pub fn remesh_chunks(
@@ -62,7 +45,6 @@ pub fn remesh_chunks(
     let layout = layouts.get(&atlas.layout).unwrap();
 
     for (entity, chunk) in query.iter() {
-        // Remove the tag so we don't remesh every frame!
         commands.entity(entity).remove::<NeedsRemesh>();
 
         let mut positions: Vec<[f32; 3]> = Vec::new();
@@ -221,8 +203,6 @@ pub fn remesh_chunks(
 
         let mesh_handle = meshes.add(mesh);
 
-        // if the entity already has a mesh (re-meshing), just swap the handle.
-        // otherwise (first time), insert the Mesh3d and Material components.
         if let Ok(mut existing) = existing_meshes.get_mut(entity) {
             existing.0 = mesh_handle;
         } else {

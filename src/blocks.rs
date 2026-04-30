@@ -175,7 +175,7 @@ pub fn stitch_textures(
             });
 
             info!("Texture Atlas successfully created!");
-            state.set(AppState::Playing);
+            state.set(AppState::MainMenu);
         }
         Err(e) => error!("Failed to build texture atlas: {:?}", e),
     }

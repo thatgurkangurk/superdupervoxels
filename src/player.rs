@@ -4,7 +4,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 
-use crate::chunk::{CHUNK_SIZE, Chunk, NeedsRemesh};
+use crate::chunk::{CHUNK_SIZE, Chunk, ChunkCoord, NeedsRemesh};
 
 #[derive(Component)]
 pub struct FlyCam {
@@ -149,7 +149,7 @@ pub fn break_blocks(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     camera_query: Query<&Transform, With<Camera3d>>,
-    mut chunk_query: Query<(Entity, &mut Chunk)>,
+    mut chunk_query: Query<(Entity, &mut Chunk, &ChunkCoord)>,
 ) {
     // only trigger on left click
     if !mouse.just_pressed(MouseButton::Left) {
@@ -164,46 +164,45 @@ pub fn break_blocks(
     let origin = cam_transform.translation;
 
     let reach = 5.0; // how far the player can reach
-    let step = 0.05; // accuracy of the raycast (smaller = more precise)
+    let step = 0.05; // accuracy of the raycast
     let max_steps = (reach / step) as usize;
 
-    for (entity, mut chunk) in chunk_query.iter_mut() {
+    for i in 0..max_steps {
+        let point = origin + forward * (i as f32 * step);
+
+        let world_x = point.x.floor() as i32;
+        let world_y = point.y.floor() as i32;
+        let world_z = point.z.floor() as i32;
+
+        let chunk_pos = IVec3::new(
+            world_x.div_euclid(CHUNK_SIZE as i32),
+            world_y.div_euclid(CHUNK_SIZE as i32),
+            world_z.div_euclid(CHUNK_SIZE as i32),
+        );
+
+        let local_x = world_x.rem_euclid(CHUNK_SIZE as i32) as usize;
+        let local_y = world_y.rem_euclid(CHUNK_SIZE as i32) as usize;
+        let local_z = world_z.rem_euclid(CHUNK_SIZE as i32) as usize;
+
         let mut hit = false;
 
-        // Step forward from the camera
-        for i in 0..max_steps {
-            let point = origin + forward * (i as f32 * step);
-
-            let x = point.x.floor() as isize;
-            let y = point.y.floor() as isize;
-            let z = point.z.floor() as isize;
-
-            // make sure the coordinate is within the chunk's 16x16x16 bounds
-            if x >= 0
-                && x < CHUNK_SIZE as isize
-                && y >= 0
-                && y < CHUNK_SIZE as isize
-                && z >= 0
-                && z < CHUNK_SIZE as isize
-            {
-                let ux = x as usize;
-                let uy = y as usize;
-                let uz = z as usize;
-
+        // find the specific chunk the ray is currently inside
+        for (entity, mut chunk, chunk_coord) in chunk_query.iter_mut() {
+            if chunk_coord.0 == chunk_pos {
                 // if the block is not air (0)
-                if chunk.blocks[ux][uy][uz] != 0 {
-                    chunk.blocks[ux][uy][uz] = 0; // Set to Air
+                if chunk.blocks[local_x][local_y][local_z] != 0 {
+                    chunk.blocks[local_x][local_y][local_z] = 0; // Break it
 
-                    // tag the chunk so the meshing system rebuilds it this frame
+                    // remesh
                     commands.entity(entity).insert(NeedsRemesh);
                     hit = true;
-                    break;
                 }
+                break; // we found the right chunk, no need to check the rest
             }
         }
 
         if hit {
-            break; // stop checking chunks if we already broke a block
+            break; // stop stepping the ray forward if we broke a block
         }
     }
 }
