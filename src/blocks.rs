@@ -39,6 +39,8 @@ pub enum BlockTextures {
 pub struct BlockData {
     pub id: NamespacedId,
     pub textures: BlockTextures,
+
+    #[allow(dead_code)]
     pub is_solid: bool,
 }
 
@@ -73,7 +75,11 @@ impl BlockRegistry {
     }
 }
 
-pub fn load_block_textures(namespace: &str, name: &str, asset_server: &AssetServer) -> BlockTextures {
+pub fn load_block_textures(
+    namespace: &str,
+    name: &str,
+    asset_server: &AssetServer,
+) -> BlockTextures {
     let asset_path = format!("{}/textures/block/{}", namespace, name);
     let physical_path = format!("assets/{}", asset_path);
 

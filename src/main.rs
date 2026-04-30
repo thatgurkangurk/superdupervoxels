@@ -1,48 +1,50 @@
 mod blocks;
 mod chunk;
+mod debug;
 mod player;
 mod state;
 
 use bevy::prelude::*;
-use blocks::{setup_registry, stitch_textures, BlockRegistry, BlockTextures};
-use chunk::{spawn_chunk, Chunk};
-use player::{
-    camera_look, camera_movement, setup_crosshair, setup_environment, toggle_mouse_grab,
-};
+use blocks::{BlockRegistry, BlockTextures, setup_registry, stitch_textures};
+use chunk::{Chunk, spawn_chunk};
+use player::{camera_look, camera_movement, setup_crosshair, setup_environment, toggle_mouse_grab};
 use state::AppState;
 
-use crate::{chunk::remesh_chunks, player::break_blocks};
+use crate::{chunk::remesh_chunks, debug::DebugUiPlugin, player::break_blocks};
 
 fn main() {
     let mut app = App::new();
 
-    app.add_plugins((DefaultPlugins
-        .set(ImagePlugin::default_nearest())
-        .set(AssetPlugin {
-            watch_for_changes_override: Some(true),
-            ..default()
-        }),))
-        .init_state::<AppState>()
-        .init_resource::<BlockRegistry>()
-        .add_systems(
-            Startup,
-            (setup_registry, setup_environment, setup_crosshair),
+    app.add_plugins((
+        DefaultPlugins
+            .set(ImagePlugin::default_nearest())
+            .set(AssetPlugin {
+                watch_for_changes_override: Some(true),
+                ..default()
+            }),
+        DebugUiPlugin,
+    ))
+    .init_state::<AppState>()
+    .init_resource::<BlockRegistry>()
+    .add_systems(
+        Startup,
+        (setup_registry, setup_environment, setup_crosshair),
+    )
+    .add_systems(Update, stitch_textures.run_if(in_state(AppState::Loading)))
+    .add_systems(
+        Update,
+        (
+            reload_resources,
+            camera_movement,
+            camera_look,
+            toggle_mouse_grab,
+            break_blocks,
+            remesh_chunks,
         )
-        .add_systems(Update, stitch_textures.run_if(in_state(AppState::Loading)))
-        .add_systems(
-            Update,
-            (
-                reload_resources,
-                camera_movement,
-                camera_look,
-                toggle_mouse_grab,
-                break_blocks,
-                remesh_chunks
-            )
-                .run_if(in_state(AppState::Playing)),
-        )
-        .add_systems(OnEnter(AppState::Playing), spawn_chunk)
-        .run();
+            .run_if(in_state(AppState::Playing)),
+    )
+    .add_systems(OnEnter(AppState::Playing), spawn_chunk)
+    .run();
 }
 
 fn reload_resources(

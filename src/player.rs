@@ -69,13 +69,25 @@ pub fn camera_movement(
         let forward = transform.rotation * Vec3::NEG_Z;
         let right = transform.rotation * Vec3::X;
 
-        if keys.pressed(KeyCode::KeyW) { velocity += forward; }
-        if keys.pressed(KeyCode::KeyS) { velocity -= forward; }
-        if keys.pressed(KeyCode::KeyA) { velocity -= right; }
-        if keys.pressed(KeyCode::KeyD) { velocity += right; }
+        if keys.pressed(KeyCode::KeyW) {
+            velocity += forward;
+        }
+        if keys.pressed(KeyCode::KeyS) {
+            velocity -= forward;
+        }
+        if keys.pressed(KeyCode::KeyA) {
+            velocity -= right;
+        }
+        if keys.pressed(KeyCode::KeyD) {
+            velocity += right;
+        }
 
-        if keys.pressed(KeyCode::Space) { velocity += Vec3::Y; }
-        if keys.pressed(KeyCode::ShiftLeft) { velocity -= Vec3::Y; }
+        if keys.pressed(KeyCode::Space) {
+            velocity += Vec3::Y;
+        }
+        if keys.pressed(KeyCode::ShiftLeft) {
+            velocity -= Vec3::Y;
+        }
 
         if velocity.length_squared() > 0.0 {
             velocity = velocity.normalize();
@@ -89,7 +101,9 @@ pub fn camera_look(
     mut ev_motion: MessageReader<MouseMotion>,
     mut query: Query<(&mut FlyCam, &mut Transform)>,
 ) {
-    let cursor = cursor_options.single().expect("cursor options should exist");
+    let cursor = cursor_options
+        .single()
+        .expect("cursor options should exist");
 
     if cursor.grab_mode == CursorGrabMode::None {
         ev_motion.clear();
@@ -142,18 +156,20 @@ pub fn break_blocks(
         return;
     }
 
-    let Ok(cam_transform) = camera_query.single() else { return; };
-    
+    let Ok(cam_transform) = camera_query.single() else {
+        return;
+    };
+
     let forward = cam_transform.rotation * Vec3::NEG_Z;
     let origin = cam_transform.translation;
 
-    let reach = 5.0;     // how far the player can reach
-    let step = 0.05;     // accuracy of the raycast (smaller = more precise)
+    let reach = 5.0; // how far the player can reach
+    let step = 0.05; // accuracy of the raycast (smaller = more precise)
     let max_steps = (reach / step) as usize;
 
     for (entity, mut chunk) in chunk_query.iter_mut() {
         let mut hit = false;
-        
+
         // Step forward from the camera
         for i in 0..max_steps {
             let point = origin + forward * (i as f32 * step);
@@ -163,10 +179,13 @@ pub fn break_blocks(
             let z = point.z.floor() as isize;
 
             // make sure the coordinate is within the chunk's 16x16x16 bounds
-            if x >= 0 && x < CHUNK_SIZE as isize &&
-               y >= 0 && y < CHUNK_SIZE as isize &&
-               z >= 0 && z < CHUNK_SIZE as isize {
-                
+            if x >= 0
+                && x < CHUNK_SIZE as isize
+                && y >= 0
+                && y < CHUNK_SIZE as isize
+                && z >= 0
+                && z < CHUNK_SIZE as isize
+            {
                 let ux = x as usize;
                 let uy = y as usize;
                 let uz = z as usize;
@@ -174,15 +193,15 @@ pub fn break_blocks(
                 // if the block is not air (0)
                 if chunk.blocks[ux][uy][uz] != 0 {
                     chunk.blocks[ux][uy][uz] = 0; // Set to Air
-                    
+
                     // tag the chunk so the meshing system rebuilds it this frame
-                    commands.entity(entity).insert(NeedsRemesh); 
+                    commands.entity(entity).insert(NeedsRemesh);
                     hit = true;
                     break;
                 }
             }
         }
-        
+
         if hit {
             break; // stop checking chunks if we already broke a block
         }
