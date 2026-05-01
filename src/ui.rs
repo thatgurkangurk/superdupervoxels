@@ -36,7 +36,7 @@ pub fn main_menu_ui(
         return;
     };
 
-    egui::Window::new("select a world")
+    egui::Window::new(format!("superdupervoxels {}", env!("CARGO_PKG_VERSION")))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
