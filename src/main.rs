@@ -5,6 +5,7 @@ mod player;
 mod state;
 mod ui;
 mod world;
+mod consts;
 
 use bevy::{prelude::*, window::PresentMode};
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};

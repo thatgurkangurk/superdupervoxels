@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use std::collections::BTreeMap;
+use crate::consts::VERSION;
 
 pub struct DebugUiPlugin;
 
@@ -154,7 +155,7 @@ pub fn update_version_debug_info(mut debug_info: ResMut<DebugInfo>) {
         "00_VERSION".to_string(),
         DebugEntry {
             label: None,
-            value: format!("superdupervoxels {}", env!("CARGO_PKG_VERSION")),
+            value: format!("superdupervoxels {VERSION}"),
         },
     );
 }

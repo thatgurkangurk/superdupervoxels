@@ -3,6 +3,7 @@ use crate::world::ChunkManager;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use std::fs;
+use crate::consts::VERSION;
 
 #[derive(Resource, Default)]
 pub struct MenuState {
@@ -36,7 +37,7 @@ pub fn main_menu_ui(
         return;
     };
 
-    egui::Window::new(format!("superdupervoxels {}", env!("CARGO_PKG_VERSION")))
+    egui::Window::new(format!("superdupervoxels {VERSION}"))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
