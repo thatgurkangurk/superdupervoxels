@@ -1,9 +1,9 @@
+use crate::consts::VERSION;
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
 use std::collections::BTreeMap;
-use crate::consts::VERSION;
 
 pub struct DebugUiPlugin;
 

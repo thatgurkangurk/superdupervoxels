@@ -1,17 +1,19 @@
 mod blocks;
 mod chunk;
+mod consts;
 mod debug;
 mod player;
 mod state;
 mod ui;
 mod world;
-mod consts;
 
-use bevy::{prelude::*, window::PresentMode};
+use bevy::{diagnostic::FrameCount, prelude::*, window::PresentMode};
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use blocks::{BlockRegistry, BlockTextures, setup_registry, stitch_textures};
 use chunk::Chunk;
-use player::{camera_look, camera_movement, setup_crosshair, setup_environment, toggle_mouse_grab};
+use consts::VERSION;
+
+use player::{camera_look, player_movement, setup_crosshair, setup_environment, toggle_mouse_grab};
 use state::AppState;
 
 use crate::{
@@ -19,7 +21,7 @@ use crate::{
     debug::DebugUiPlugin,
     player::break_blocks,
     ui::{MenuState, despawn_menu_camera, main_menu_ui, setup_menu_camera},
-    world::{manage_chunks, save_world_on_exit},
+    world::{manage_chunks, restore_player_position, save_world_on_exit},
 };
 
 fn main() {
@@ -34,7 +36,9 @@ fn main() {
             })
             .set(WindowPlugin {
                 primary_window: Some(Window {
+                    title: format!("superdupervoxels {VERSION}"),
                     present_mode: PresentMode::AutoNoVsync,
+                    visible: false,
                     ..default()
                 }),
                 ..default()
@@ -47,6 +51,7 @@ fn main() {
     .init_resource::<MenuState>()
     // --- STARTUP / LOADING PHASE ---
     .add_systems(Startup, (setup_registry, setup_menu_camera))
+    .add_systems(Update, make_visible)
     .add_systems(Update, stitch_textures.run_if(in_state(AppState::Loading)))
     // --- MAIN MENU PHASE ---
     .add_systems(
@@ -56,14 +61,21 @@ fn main() {
     // --- GAMEPLAY PHASE ---
     .add_systems(
         OnEnter(AppState::Playing),
-        (despawn_menu_camera, setup_environment, setup_crosshair),
+        (
+            despawn_menu_camera,
+            setup_environment,
+            setup_crosshair,
+            ApplyDeferred,
+            restore_player_position,
+        )
+            .chain(),
     )
     // gameplay loop
     .add_systems(
         Update,
         (
             reload_resources,
-            camera_movement,
+            player_movement,
             camera_look,
             toggle_mouse_grab,
             break_blocks,
@@ -74,6 +86,17 @@ fn main() {
     )
     .add_systems(Last, save_world_on_exit.run_if(in_state(AppState::Playing)))
     .run();
+}
+
+// from bevy docs
+fn make_visible(mut window: Single<&mut Window>, frames: Res<FrameCount>) {
+    // The delay may be different for your app or system.
+    if frames.0 == 3 {
+        // At this point the gpu is ready to show the app so we can make the window visible.
+        // Alternatively, you could toggle the visibility in Startup.
+        // It will work, but it will have one white frame before it starts rendering
+        window.visible = true;
+    }
 }
 
 fn reload_resources(

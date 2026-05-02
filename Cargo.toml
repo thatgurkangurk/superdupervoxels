@@ -1,6 +1,6 @@
 [package]
 name = "superdupervoxels"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 
 [dependencies]
@@ -22,9 +22,11 @@ opt-level = 3
 
 # Enable more optimization in the release profile at the cost of compile time.
 [profile.release]
+strip = true
 # Compile the entire crate as one unit.
 # Slows compile times, marginal improvements.
 codegen-units = 1
 # Do a second optimization pass over the entire program, including dependencies.
 # Slows compile times, marginal improvements.
-lto = "thin"
+lto = "fat"
+opt-level = "z"

@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::blocks::{BlockRegistry, NamespacedId};
 use crate::chunk::{CHUNK_SIZE, Chunk, ChunkCoord, NeedsRemesh};
-use crate::player::FlyCam;
+use crate::player::Player;
 
 const CHUNKS_TABLE: TableDefinition<[i32; 3], &[u8]> = TableDefinition::new("chunks");
 const REGION_SIZE: i32 = 32; // 32x32 chunks per region file
@@ -19,7 +19,9 @@ const REGION_SIZE: i32 = 32; // 32x32 chunks per region file
 pub struct WorldMeta {
     pub name: String,
     pub seed: u128,
-    // add player inventory, time of day, and so on here later
+    pub player_pos: Option<[f32; 3]>,
+    pub player_pitch: Option<f32>,
+    pub player_yaw: Option<f32>,
 }
 
 #[derive(Resource)]
@@ -29,6 +31,7 @@ pub struct ChunkManager {
     #[allow(dead_code, unused)]
     pub world_name: String,
     pub world_path: PathBuf,
+    pub meta: WorldMeta,
     // caches open databases so we don't reopen files every frame
     open_regions: HashMap<IVec2, Database>,
 }
@@ -43,20 +46,33 @@ impl ChunkManager {
 
         // handle world.toml
         let toml_path = world_path.join("world.toml");
-        if !toml_path.exists() {
-            let meta = WorldMeta {
+
+        // Read existing TOML, or create a new one if it doesn't exist
+        let meta = if toml_path.exists() {
+            let toml_string = fs::read_to_string(&toml_path).expect("Failed to read world.toml");
+            toml::from_str(&toml_string).expect("Failed to parse world.toml")
+        } else {
+            let default_meta = WorldMeta {
                 name: world_name.to_string(),
-                seed: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
+                seed: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis(),
+                player_pos: None, // No saved position yet
+                player_pitch: None,
+                player_yaw: None,
             };
-            let toml_string = toml::to_string_pretty(&meta).unwrap();
+            let toml_string = toml::to_string_pretty(&default_meta).unwrap();
             fs::write(&toml_path, toml_string).expect("Failed to write world.toml");
-        }
+            default_meta
+        };
 
         Self {
             loaded_chunks: HashMap::new(),
             render_distance: 4,
             world_name: world_name.to_string(),
             world_path,
+            meta,
             open_regions: HashMap::new(),
         }
     }
@@ -88,7 +104,7 @@ impl ChunkManager {
 
 pub fn manage_chunks(
     mut commands: Commands,
-    player_transform: Single<&Transform, With<FlyCam>>,
+    player_transform: Single<&Transform, With<Player>>,
     mut chunk_manager: ResMut<ChunkManager>,
     chunk_query: Query<&Chunk>,
     registry: Res<BlockRegistry>,
@@ -129,7 +145,6 @@ pub fn manage_chunks(
     }
 
     for (_region_coord, chunks) in chunks_to_unload_by_region {
-        // only grab the first chunk's coord to fetch the right db file (they are all in the same region)
         let db = chunk_manager.get_region_db(chunks[0].0);
         let write_txn = db.begin_write().unwrap();
         {
@@ -147,12 +162,11 @@ pub fn manage_chunks(
         write_txn.commit().unwrap();
     }
 
-    // remove unloaded chunks from the tracking map
     chunk_manager
         .loaded_chunks
         .retain(|coord, _| expected_chunks.contains(coord));
 
-    // --- LOAD & GENERATE ---
+    // --- load & generate ---
     let mut missing_chunks_by_region: HashMap<IVec2, Vec<IVec3>> = HashMap::new();
     for coord in expected_chunks {
         if !chunk_manager.loaded_chunks.contains_key(&coord) {
@@ -225,13 +239,13 @@ pub fn save_world_on_exit(
     mut exit_events: MessageReader<AppExit>,
     mut chunk_manager: ResMut<ChunkManager>,
     chunk_query: Query<(&Chunk, &ChunkCoord)>,
+    player_query: Query<(&Transform, &Player)>,
 ) {
     if exit_events.read().next().is_some() {
         info!("Saving active chunks to region databases...");
 
         let mut chunks_by_region: HashMap<IVec2, Vec<(&Chunk, IVec3)>> = HashMap::new();
 
-        // group all active chunks
         for (chunk, coord) in chunk_query.iter() {
             let region = IVec2::new(
                 coord.0.x.div_euclid(REGION_SIZE),
@@ -243,7 +257,6 @@ pub fn save_world_on_exit(
                 .push((chunk, coord.0));
         }
 
-        // save each region
         for (_region, chunks) in chunks_by_region {
             let db = chunk_manager.get_region_db(chunks[0].1);
             let write_txn = db.begin_write().unwrap();
@@ -258,6 +271,45 @@ pub fn save_world_on_exit(
             write_txn.commit().unwrap();
         }
 
+        if let Ok((transform, player)) = player_query.single() {
+            chunk_manager.meta.player_pos = Some(transform.translation.to_array());
+    chunk_manager.meta.player_pitch = Some(player.pitch);
+    chunk_manager.meta.player_yaw = Some(player.yaw);
+
+            let toml_path = chunk_manager.world_path.join("world.toml");
+            if let Ok(toml_string) = toml::to_string_pretty(&chunk_manager.meta) {
+                if let Err(e) = fs::write(toml_path, toml_string) {
+                    error!("Failed to write world.toml: {}", e);
+                }
+            }
+        }
+
         info!("World saved successfully!");
+    }
+}
+
+
+pub fn restore_player_position(
+    chunk_manager: Res<ChunkManager>,
+    mut player_query: Query<(&mut Transform, &mut Player)>,
+) {
+    let Some(saved_pos) = chunk_manager.meta.player_pos else {
+        info!("No saved player position found. Using default spawn.");
+        return;
+    };
+
+    if let Ok((mut transform, mut player)) = player_query.single_mut() {
+        // restore player position
+        transform.translation = Vec3::from_array(saved_pos);
+        
+        // restore player look
+        player.pitch = chunk_manager.meta.player_pitch.unwrap_or(0.0);
+        player.yaw = chunk_manager.meta.player_yaw.unwrap_or(0.0);
+        
+        // synchronise rotation
+        transform.rotation = Quat::from_axis_angle(Vec3::Y, player.yaw) 
+                           * Quat::from_axis_angle(Vec3::X, player.pitch);
+        
+        info!("Player position restored to {:?}", saved_pos);
     }
 }

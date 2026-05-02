@@ -1,9 +1,9 @@
+use crate::consts::VERSION;
 use crate::state::AppState;
 use crate::world::ChunkManager;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use std::fs;
-use crate::consts::VERSION;
 
 #[derive(Resource, Default)]
 pub struct MenuState {
@@ -14,10 +14,7 @@ pub struct MenuState {
 pub struct MenuCamera;
 
 pub fn setup_menu_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        MenuCamera,
-    ));
+    commands.spawn((Camera2d, MenuCamera));
 }
 
 pub fn despawn_menu_camera(mut commands: Commands, query: Query<Entity, With<MenuCamera>>) {
